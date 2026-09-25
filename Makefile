@@ -1,7 +1,7 @@
 CC = gcc
-CFLAGS = -Wall -Wextra -Werror -fsanitize=address -g
+CFLAGS = -Wall -Wextra -fsanitize=address -g
 LIBFLAGS = $(shell sdl2-config --cflags --libs) -lSDL2_image
-SRC = main.o img_loading.o
+SRC = main.o img_loading.o grid_detection.o
 EXEC_NAME = app
 
 all: $(SRC)

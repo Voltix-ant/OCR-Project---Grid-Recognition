@@ -10,7 +10,8 @@ SDL_Surface *load_image(const char *path) {
     SDL_Surface *s = SDL_ConvertSurfaceFormat(tmp, SDL_PIXELFORMAT_RGBA32, 0);
     SDL_FreeSurface(tmp);
     if (!s)
-        errx(1, "Error : Fail to convert the image to RGBA32 - %s", SDL_GetError());
+        errx(1, "Error : Fail to convert the image to RGBA32 - %s", 
+                SDL_GetError());
     return s;
 }
 
@@ -23,23 +24,25 @@ struct matrix *img_to_matrix(SDL_Surface *s) {
     struct matrix *mat = malloc(sizeof(struct matrix));
     mat->width = s->w;
     mat->height = s->h;
-    mat->data = malloc(mat->height*sizeof(char *))
+    mat->data = malloc(mat->height*sizeof(char *));
     
     SDL_LockSurface(s);
-    for (int y = 0; y < s->h; y++)
-        mat->data[y] = malloc(mat->width*sizeof(char))
+    for (int y = 0; y < s->h; y++) {
+        mat->data[y] = malloc(mat->width*sizeof(char));
         for (int x = 0; x < s->w; x++) {
             Uint8 r, g, b, a;
             SDL_GetRGBA(get_px(s, x, y), s->format, &r, &g, &b, &a);
 
             // temporary binarisation (unusable)
-            // This part will be replaced by the actual image binarisation algorithm developped by Gustave
+            // This part will be replaced by the actual image binarisation
+            // algorithm developped by Gustave
             if (r > 128) {
                 mat->data[y][x] = 255;
             } else {
-                mat->data[x][y] = 0;
+                mat->data[y][x] = 0;
             }
         }
-    SDL_UnlockSurface(img);
-    
+    }
+    SDL_UnlockSurface(s);
+    return mat;
 }
