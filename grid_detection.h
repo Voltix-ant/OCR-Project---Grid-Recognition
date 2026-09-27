@@ -22,6 +22,28 @@ struct px_count_arr {
     int *cols;
 };
 
+// ============= Regions ==================
+
+enum region_type {
+    REGION_UNKNOWN,
+    REGION_GRID,
+    REGION_WORDLIST,
+    REGION_UNNECESSARY
+};
+
+enum cut_direction { CUT_HORIZONTAL, CUT_VERTICAL };
+
+struct region {
+    /* type representing a region in the image, follow a general tree structure
+    , the children of a region is a region inside the parent region.*/
+    int x1, y1, x2, y2;
+    int level;                  // depth in XY-cut tree
+    enum cut_direction cut_dir; // direction of the cut that produced this node
+    enum region_type type;      // filled after identification
+    struct region **children;
+    size_t nb_children;
+};
+
 // matrix
 void destroy_matrix(struct matrix *m);
 
