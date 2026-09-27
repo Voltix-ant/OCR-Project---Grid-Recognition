@@ -43,15 +43,19 @@ void destroy_px_count_arr(struct px_count_arr *arr) {
     }
 }
 
-struct int_list **find_area_coords(struct px_count_arr *arr) {
+struct int_list **find_area_coords(struct px_count_arr *arr,
+        float void_block_prop) {
     /*this array contain the coordinates of the top left (1) and bottom 
-      right (2) corners of each area like so :  {x_1,y_1,x_2,y_2,...}*/
+      right (2) corners of each area like so :  {x_1,y_1,x_2,y_2,...}
+      It takes in parameter the arrays that count the numbers of black px
+      per rows and columns and a float that represent the proportion of the
+      width / height that a void zone must be to be consider as one*/
     struct int_list *y_points = NULL;
     struct int_list *x_points = NULL;
     int x = arr->start_x;
     int y = arr->start_y;
     int height = arr->end_y - arr->start_y + 1;
-    //int width = arr->end_x - arr->start_x + 1;
+    int width = arr->end_x - arr->start_x + 1;
 
     int zero_ctr = 0;
     int possible_end_area = -1;
@@ -64,7 +68,7 @@ struct int_list **find_area_coords(struct px_count_arr *arr) {
             }
             zero_ctr++;
         } else {
-            if ((zero_ctr > height / 100) || y == 0) {
+            if ((zero_ctr > height*void_block_prop) || y == arr->start_y) {
                 // begining of a new area
                 if (possible_end_area > 0)
                     y_points = int_list_push(y_points,possible_end_area);
@@ -89,7 +93,7 @@ struct int_list **find_area_coords(struct px_count_arr *arr) {
             }
             zero_ctr++;
         } else {
-            if ((zero_ctr > height / 100) || x == 0) {
+            if ((zero_ctr > width*void_block_prop) || x == arr->start_x) {
                 // begining of a new area
                 if (possible_end_area > 0)
                     x_points = int_list_push(x_points,possible_end_area);

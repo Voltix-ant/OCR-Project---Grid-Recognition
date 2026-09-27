@@ -1,6 +1,7 @@
 #include "img_loading.h"
 #include "grid_detection.h"
 #include <stdlib.h>
+#include <sys/stat.h>
 
 SDL_Surface *load_image(const char *path) {
     SDL_Surface *tmp = IMG_Load(path);
@@ -85,5 +86,6 @@ void draw_areas(SDL_Surface *s, struct int_list **points) {
         cur_y = cur_y->next->next;
     }
     // result
-    IMG_SavePNG(s, "result.png");
+    mkdir("detec_steps", 0755);
+    IMG_SavePNG(s, "detec_steps/result.png");
 }

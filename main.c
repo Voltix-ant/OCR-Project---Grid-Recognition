@@ -20,7 +20,9 @@ int main(int argc, char **argv) {
     );
 
     // find the areas
-    struct int_list **area_coords_arr = find_area_coords(total_blk_counts);
+    struct int_list **area_coords_arr = find_area_coords(
+            total_blk_counts, 0.01
+    );
    // draw areas on the image 
     draw_areas(s,area_coords_arr);
 

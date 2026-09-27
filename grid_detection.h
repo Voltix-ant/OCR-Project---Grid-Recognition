@@ -31,6 +31,7 @@ struct px_count_arr *nb_blk_count(struct matrix *image,
         int end_x, int end_y);
 void destroy_px_count_arr(struct px_count_arr *arr);
 
-struct int_list **find_area_coords(struct px_count_arr *arr);
+struct int_list **find_area_coords(struct px_count_arr *arr,
+        float void_block_prop);
 
 #endif
