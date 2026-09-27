@@ -43,6 +43,52 @@ void destroy_px_count_arr(struct px_count_arr *arr) {
     }
 }
 
+// ===================== Regions struct ==========================
+
+struct Region *create_region(
+    int x1, int y1, int x2, int y2, int level,
+    enum cut_direction cut_dir
+) {
+    struct Region *new = calloc(1,sizeof(struct Region));
+    if (!new) {
+        errx(1, "Could not allocate memory");
+        return NULL;
+    }
+    new->x1 = x1;
+    new->x2 = x2;
+    new->y1 = y1;
+    new->y2 = y2;
+    new->level = level;
+    new->cut_dir = cut_dir;
+    new->type = REGION_UNKNOWN;
+    new->children = NULL;
+    new->nb_children = 0;
+    return new;
+}
+
+void region_add_child(struct Region *parent, struct Region *child) {
+    struct Region **nl = realloc(
+            parent->children,(parent->nb_children+1)*sizeof(struct Region)
+    );
+    if (!nl) {
+        errx(1, "Could not allocate memory");
+        return;
+    }
+    parent->children = nl;
+    parent->children[parent->nb_children] = child;
+    parent->nb_children++;
+}
+
+void region_destroy(struct Region *root) {
+    for (size_t i = 0; i < root->nb_children; i++) {
+        region_destroy(root->children[i]);
+    }
+    free(root->children);
+    free(root);
+}
+
+// ==============================================================
+
 struct int_list **find_area_coords(struct px_count_arr *arr,
         float void_block_prop) {
     /*this array contain the coordinates of the top left (1) and bottom 
