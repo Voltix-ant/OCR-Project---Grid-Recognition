@@ -65,8 +65,10 @@ void region_add_child(struct Region *parent, struct Region *child);
 void region_destroy(struct Region *root);
 
 
-
-struct int_list **find_area_coords(struct px_count_arr *arr,
-        float void_block_prop);
+void find_subregions(
+        struct matrix *m,
+        struct Region *p, enum cut_direction cut_dir,
+        float void_block_prop
+);
 
 #endif

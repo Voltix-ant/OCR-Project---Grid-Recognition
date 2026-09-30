@@ -89,77 +89,113 @@ void region_destroy(struct Region *root) {
 
 // ==============================================================
 
-struct int_list **find_area_coords(struct px_count_arr *arr,
-        float void_block_prop) {
-    /*this array contain the coordinates of the top left (1) and bottom 
-      right (2) corners of each area like so :  {x_1,y_1,x_2,y_2,...}
-      It takes in parameter the arrays that count the numbers of black px
-      per rows and columns and a float that represent the proportion of the
-      width / height that a void zone must be to be consider as one*/
-    struct int_list *y_points = NULL;
-    struct int_list *x_points = NULL;
+void find_subregions(
+        struct matrix *m,
+        struct Region *p, enum cut_direction cut_dir,
+        float void_block_prop
+) {
+    /*This function find all the subregions of a region p depending
+    on the direction given with cut_dir, all the subregions are
+    added as children of the parent region p. To do so, it use the
+    number of black px of each rows/columns given by nb_blk_count().
+    We consider there is a gap (region change) if the blank area exceed
+    the proportion given by void_block_prop of the width/height of the 
+    parent region*/
+
+    struct px_count_arr *arr = nb_blk_count(m,p->x1,p->y1,p->x2,p->y2);
     int x = arr->start_x;
     int y = arr->start_y;
     int height = arr->end_y - arr->start_y + 1;
     int width = arr->end_x - arr->start_x + 1;
 
     int zero_ctr = 0;
-    int possible_end_area = -1;
-    // rows
-    while (y <= arr->end_y) {
-        if (arr->rows[y] == 0) {
-            if (zero_ctr == 0 && y != arr->start_y) {
-                // end of an area
-                possible_end_area = y;
-            }
-            zero_ctr++;
-        } else {
-            if ((zero_ctr > height*void_block_prop) || y == arr->start_y) {
-                // begining of a new area
-                if (possible_end_area > 0)
-                    y_points = int_list_push(y_points,possible_end_area);
-                y_points = int_list_push(y_points,y);
-            }
-            zero_ctr = 0;
-        }
-        y++;
-    }
-    if (zero_ctr == 0)
-        y_points = int_list_push(y_points,arr->end_y);
-    else
-        y_points = int_list_push(y_points,possible_end_area);
-    zero_ctr = 0; //reset
-    possible_end_area = -1;
-    //cols
-    while (x <= arr->end_x) {
-        if (arr->cols[x] == 0) {
-            if (zero_ctr == 0 && x != arr->start_x) {
-                // end of an area
-                possible_end_area = x;
-            }
-            zero_ctr++;
-        } else {
-            if ((zero_ctr > width*void_block_prop) || x == arr->start_x) {
-                // begining of a new area
-                if (possible_end_area > 0)
-                    x_points = int_list_push(x_points,possible_end_area);
-                x_points = int_list_push(x_points,x);
-            }
-            zero_ctr = 0;
-        }
-        x++;
-    }
-    if (zero_ctr == 0)
-        x_points = int_list_push(x_points,arr->end_x);
-    else
-        x_points = int_list_push(x_points,possible_end_area);
-    int_list_print(y_points); // Must have an even number of points
-    int_list_print(x_points);
+    int start_region = -1;
+    int possible_end_region = -1;
 
-    // nb of area is (len(x_pts) / 2) * (len(pts_y) / 2)
-
-    struct int_list **points = malloc(2*sizeof(struct int_list*));
-    points[0] = y_points;
-    points[1] = x_points;
-    return points;
+    if (cut_dir == CUT_HORIZONTAL) {
+        // rows
+        while (y <= arr->end_y) {
+            if (arr->rows[y] == 0) {
+                if (zero_ctr == 0 && y != arr->start_y) {
+                    // end of a region
+                    possible_end_region = y;
+                }
+                zero_ctr++;
+            } else {
+                if ((zero_ctr > height*void_block_prop) || y == arr->start_y) {
+                    // begining of a new region
+                    if (possible_end_region > 0) {
+                        // create the child region
+                        struct Region *c = create_region(
+                            arr->start_x, start_region,
+                            arr->end_x, possible_end_region,
+                            p->level+1,cut_dir
+                        );
+                        region_add_child(p,c);
+                    }
+                    start_region = y;
+                }
+                zero_ctr = 0;
+            }
+            y++;
+        }
+        if (zero_ctr == 0) {
+            struct Region *c = create_region(
+                arr->start_x, start_region,
+                arr->end_x, arr->end_y,
+                p->level+1,cut_dir
+            );
+            region_add_child(p,c);
+        } else {
+            struct Region *c = create_region(
+                arr->start_x, start_region,
+                arr->end_x, possible_end_region,
+                p->level+1,cut_dir
+            );
+            region_add_child(p,c);
+        }
+    } else {
+        //cols
+        while (x <= arr->end_x) {
+            if (arr->cols[x] == 0) {
+                if (zero_ctr == 0 && x != arr->start_x) {
+                    // end of a region
+                    possible_end_region = x;
+                }
+                zero_ctr++;
+            } else {
+                if ((zero_ctr > width*void_block_prop) || x == arr->start_x) {
+                    // begining of a new region
+                    if (possible_end_region > 0) {
+                        // create the child region
+                        struct Region *c = create_region(
+                            start_region, arr->start_y,
+                            possible_end_region, arr->end_y,
+                            p->level+1,cut_dir
+                        );
+                        region_add_child(p,c);
+                    }
+                    start_region = x;
+                }
+                zero_ctr = 0;
+            }
+            x++;
+        }
+        if (zero_ctr == 0) {
+            struct Region *c = create_region(
+                start_region, arr->start_y,
+                arr->end_x, arr->end_y,
+                p->level+1,cut_dir
+            );
+            region_add_child(p,c);
+        } else {
+            struct Region *c = create_region(
+                start_region, arr->start_y,
+                possible_end_region, arr->end_y,
+                p->level+1,cut_dir
+            );
+            region_add_child(p,c);
+        }
+    }
+    destroy_px_count_arr(arr);
 }

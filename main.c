@@ -14,22 +14,19 @@ int main(int argc, char **argv) {
     // Translate to matrix
     struct matrix *mat = img_to_matrix(s);
 
-    // count black px on the whole image
-    struct px_count_arr *total_blk_counts = nb_blk_count(
-            mat, 0,0,mat->width-1,mat->height-1
-    );
+    struct Region *r_region = create_region(0,0,mat->width-1,mat->height-1,
+                                            0, CUT_VERTICAL);
+    // search region once for test purpose
+    find_subregions(mat,r_region, CUT_HORIZONTAL,0.01);
 
-    // find the areas
-    struct int_list **area_coords_arr = find_area_coords(
-            total_blk_counts, 0.01
-    );
-   // draw areas on the image 
-    draw_areas(s,area_coords_arr);
+    // draw areas on the image 
+    draw_regions(s,r_region);
 
-    destroy_px_count_arr(total_blk_counts);
-    int_list_destroy(area_coords_arr[0]);
-    int_list_destroy(area_coords_arr[1]);
-    free(area_coords_arr);
+    // Save result
+    save_result(s);
+
+    // Destroy everything
+    region_destroy(r_region);
     destroy_matrix(mat);
 
     return 0;

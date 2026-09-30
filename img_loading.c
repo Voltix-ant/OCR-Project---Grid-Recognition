@@ -50,42 +50,38 @@ struct matrix *img_to_matrix(SDL_Surface *s) {
 
 
 void draw_rect_outline(
-        SDL_Surface *s, SDL_Rect r, Uint32 color, int thickness
+        SDL_Surface *s, SDL_Rect r, int index, int thickness
 ) {
     /*This function draw a rectangle on a surface (used to show) areas for 
       debug purpose*/
+    SDL_Color c = colors[index];
+    Uint32 px_color = SDL_MapRGB(s->format, c.r, c.g, c.b);
+
     SDL_Rect top    = { r.x, r.y, r.w, thickness };
     SDL_Rect bottom = { r.x, r.y + r.h - thickness, r.w, thickness };
     SDL_Rect left   = { r.x, r.y, thickness, r.h };
     SDL_Rect right  = { r.x + r.w - thickness, r.y, thickness, r.h };
 
-    SDL_FillRect(s, &top, color);
-    SDL_FillRect(s, &bottom, color);
-    SDL_FillRect(s, &left, color);
-    SDL_FillRect(s, &right, color);
+    SDL_FillRect(s, &top, px_color);
+    SDL_FillRect(s, &bottom, px_color);
+    SDL_FillRect(s, &left, px_color);
+    SDL_FillRect(s, &right, px_color);
 }
 
-
-void draw_areas(SDL_Surface *s, struct int_list **points) {
-    Uint32 red = SDL_MapRGB(s->format, 255, 0, 0);
-
-
-    struct int_list *cur_y = points[0];
-    while (cur_y != NULL) {
-        int y = cur_y->data;
-        int height = cur_y->next->data - y;
-        struct int_list *cur_x = points[1];
-        while (cur_x != NULL) {
-            int x = cur_x->data;
-            int width = cur_x->next->data - x;
-            // draw rectangle
-            SDL_Rect zone = { .x = x, .y = y, .w = width, .h = height };
-            draw_rect_outline(s, zone, red, 1);
-            cur_x = cur_x->next->next;
-        }
-        cur_y = cur_y->next->next;
+void draw_regions(SDL_Surface *s, struct Region *r) {
+    /*This function does a DFS in the region tree of root r to draw all the 
+    regions*/
+    if (r != NULL) {
+        // Draw the root area
+        SDL_Rect zone = {.x = r->x1,
+                         .y = r->y1,
+                         .w = r->x2 - r->x1,
+                         .h = r->y2 - r->y1};
+        draw_rect_outline(s, zone, r->level, s->h / 150);
     }
-    // result
+}
+
+void save_result(SDL_Surface *s) {
     mkdir("detec_steps", 0755);
     IMG_SavePNG(s, "detec_steps/result.png");
 }
