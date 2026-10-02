@@ -77,7 +77,10 @@ void draw_regions(SDL_Surface *s, struct Region *r) {
                          .y = r->y1,
                          .w = r->x2 - r->x1,
                          .h = r->y2 - r->y1};
-        draw_rect_outline(s, zone, r->level, s->h / 150);
+        draw_rect_outline(s, zone, r->level % 6, 2);
+    }
+    for (size_t i = 0; i < r->nb_children; i++) {
+        draw_regions(s,r->children[i]);
     }
 }
 

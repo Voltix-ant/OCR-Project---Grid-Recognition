@@ -14,10 +14,12 @@ int main(int argc, char **argv) {
     // Translate to matrix
     struct matrix *mat = img_to_matrix(s);
 
+    // root region = the whole image
     struct Region *r_region = create_region(0,0,mat->width-1,mat->height-1,
                                             0, CUT_VERTICAL);
     // search region once for test purpose
-    find_subregions(mat,r_region, CUT_HORIZONTAL,0.01);
+    //find_subregions(mat,r_region, CUT_HORIZONTAL,0.01);
+    segment_region(mat, r_region, CUT_HORIZONTAL);
 
     // draw areas on the image 
     draw_regions(s,r_region);

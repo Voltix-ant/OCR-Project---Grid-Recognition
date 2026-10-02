@@ -17,6 +17,8 @@ struct px_count_arr *nb_blk_count(struct matrix *mat,
     number of black px on each row and the second one to an array of the
     number of black px on each column.
     It do this only on the area of the matrix between the coordinates given*/
+
+    // printf("(%i,%i) -> (%i,%i)\n",start_x,start_y,end_x,end_y);
     struct px_count_arr *res = malloc(sizeof(struct px_count_arr));
     res->start_x = start_x;
     res->start_y = start_y;
@@ -27,8 +29,8 @@ struct px_count_arr *nb_blk_count(struct matrix *mat,
     for (int y = start_y; y <= end_y; y++) {
         for (int x = start_x; x <= end_x; x++) {
             if (mat->data[y][x] == 0) {
-                res->rows[y]++;
-                res->cols[x]++;
+                res->rows[y - start_y]++;
+                res->cols[x - start_x]++;
             }
         }
     }
@@ -51,7 +53,7 @@ struct Region *create_region(
 ) {
     struct Region *new = calloc(1,sizeof(struct Region));
     if (!new) {
-        errx(1, "Could not allocate memory");
+        errx(1, "Create_region : Could not allocate memory");
         return NULL;
     }
     new->x1 = x1;
@@ -71,7 +73,7 @@ void region_add_child(struct Region *parent, struct Region *child) {
             parent->children,(parent->nb_children+1)*sizeof(struct Region)
     );
     if (!nl) {
-        errx(1, "Could not allocate memory");
+        errx(1, "region_add_child : Could not allocate memory");
         return;
     }
     parent->children = nl;
@@ -87,7 +89,7 @@ void region_destroy(struct Region *root) {
     free(root);
 }
 
-// ==============================================================
+// ============== Region detection ==========================
 
 void find_subregions(
         struct matrix *m,
@@ -103,6 +105,41 @@ void find_subregions(
     parent region*/
 
     struct px_count_arr *arr = nb_blk_count(m,p->x1,p->y1,p->x2,p->y2);
+    int horizontal = (cut_dir == CUT_HORIZONTAL);
+    const int *counts = horizontal ? arr->rows : arr->cols;
+    int offset = horizontal ? arr->start_y : arr->start_x;
+    int n = horizontal ? arr->end_y - arr->start_y + 1
+                       : arr->end_x - arr->start_x + 1;
+    int min_gap = (int)(n * void_block_prop);
+
+    int start = -1;
+    int last = -1;
+
+
+    for (int i = 0; i <= n; i++) {
+        int black = (i < n) && counts[i] != 0;
+        if (black) {
+            if (start == -1)
+                start = i;
+            last = i;
+        } else if (start != -1 && (i == n || i - last > min_gap)) {
+            // vide trop grand (ou fin de zone) : on ferme le run
+            struct Region *c;
+            if (horizontal)
+                c = create_region(arr->start_x, offset + start,
+                                  arr->end_x, offset + last,
+                                  p->level + 1, cut_dir);
+            else
+                c = create_region(offset + start, arr->start_y,
+                                  offset + last, arr->end_y,
+                                  p->level + 1, cut_dir);
+            region_add_child(p, c);
+            start = -1;
+        }
+    }
+    destroy_px_count_arr(arr);
+
+/*
     int x = arr->start_x;
     int y = arr->start_y;
     int height = arr->end_y - arr->start_y + 1;
@@ -115,7 +152,7 @@ void find_subregions(
     if (cut_dir == CUT_HORIZONTAL) {
         // rows
         while (y <= arr->end_y) {
-            if (arr->rows[y] == 0) {
+            if (arr->rows[y - arr->start_y] == 0) {
                 if (zero_ctr == 0 && y != arr->start_y) {
                     // end of a region
                     possible_end_region = y;
@@ -157,7 +194,7 @@ void find_subregions(
     } else {
         //cols
         while (x <= arr->end_x) {
-            if (arr->cols[x] == 0) {
+            if (arr->cols[x - arr->start_x] == 0) {
                 if (zero_ctr == 0 && x != arr->start_x) {
                     // end of a region
                     possible_end_region = x;
@@ -197,5 +234,55 @@ void find_subregions(
             region_add_child(p,c);
         }
     }
-    destroy_px_count_arr(arr);
+    destroy_px_count_arr(arr);*/
+}
+
+void segment_region(
+        struct matrix *m, struct Region *p, 
+        enum cut_direction cut_dir
+) {
+    /*This function is recursive, it calls find_subregions() with the cut
+    direction changing each call to find all the subregions in the image*/
+    // Parameters :
+    float void_block_prop = 0.01; // min prop to consider a void block
+    float min_width_prop = 0.01; // min prop of the image width for a region
+    float min_height_prop = 0.01;// ----------------------height -----------
+
+    find_subregions(m,p,cut_dir,void_block_prop);
+
+    if (p->nb_children == 1) {
+        struct Region *c = p->children[0];
+        if (p->x1 == c->x1 && p->x2 == c->x2 && 
+            p->y1 == c->y1 && p->y2 == c->y2) {
+            // child region same as parent : end recursion 
+            // and remove unuseful child
+            region_destroy(c);
+            struct Region **nl = realloc(
+                    p->children,(p->nb_children-1)*sizeof(struct Region)
+            );
+            p->children = nl;
+            p->nb_children--;
+            return;
+        } else {
+            if (cut_dir == CUT_VERTICAL) {
+                segment_region(m,p->children[0],CUT_HORIZONTAL);
+            } else {
+                segment_region(m,p->children[0],CUT_VERTICAL);
+            }
+        }
+    } else {
+        for (size_t i = 0; i < p->nb_children; i++) {
+            int width = p->children[i]->x2 - p->children[i]->x1;
+            int height = p->children[i]->y2 - p->children[i]->y1;
+            if (cut_dir == CUT_HORIZONTAL) {
+                if (width > min_width_prop*m->width) {
+                    segment_region(m,p->children[i],CUT_VERTICAL);
+                }
+            } else {
+                if (height > min_height_prop*m->height) {
+                    segment_region(m,p->children[i],CUT_HORIZONTAL);
+                }
+            }
+        }
+    }
 }

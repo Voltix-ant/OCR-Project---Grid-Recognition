@@ -71,4 +71,9 @@ void find_subregions(
         float void_block_prop
 );
 
+void segment_region(
+        struct matrix *m, struct Region *p, 
+        enum cut_direction cut_dir
+);
+
 #endif
