@@ -70,7 +70,7 @@ struct Region *create_region(
 
 void region_add_child(struct Region *parent, struct Region *child) {
     struct Region **nl = realloc(
-            parent->children,(parent->nb_children+1)*sizeof(struct Region)
+            parent->children,(parent->nb_children+1)*sizeof(struct Region*)
     );
     if (!nl) {
         errx(1, "region_add_child : Could not allocate memory");
@@ -138,103 +138,6 @@ void find_subregions(
         }
     }
     destroy_px_count_arr(arr);
-
-/*
-    int x = arr->start_x;
-    int y = arr->start_y;
-    int height = arr->end_y - arr->start_y + 1;
-    int width = arr->end_x - arr->start_x + 1;
-
-    int zero_ctr = 0;
-    int start_region = -1;
-    int possible_end_region = -1;
-
-    if (cut_dir == CUT_HORIZONTAL) {
-        // rows
-        while (y <= arr->end_y) {
-            if (arr->rows[y - arr->start_y] == 0) {
-                if (zero_ctr == 0 && y != arr->start_y) {
-                    // end of a region
-                    possible_end_region = y;
-                }
-                zero_ctr++;
-            } else {
-                if ((zero_ctr > height*void_block_prop) || y == arr->start_y) {
-                    // begining of a new region
-                    if (possible_end_region > 0) {
-                        // create the child region
-                        struct Region *c = create_region(
-                            arr->start_x, start_region,
-                            arr->end_x, possible_end_region,
-                            p->level+1,cut_dir
-                        );
-                        region_add_child(p,c);
-                    }
-                    start_region = y;
-                }
-                zero_ctr = 0;
-            }
-            y++;
-        }
-        if (zero_ctr == 0) {
-            struct Region *c = create_region(
-                arr->start_x, start_region,
-                arr->end_x, arr->end_y,
-                p->level+1,cut_dir
-            );
-            region_add_child(p,c);
-        } else {
-            struct Region *c = create_region(
-                arr->start_x, start_region,
-                arr->end_x, possible_end_region,
-                p->level+1,cut_dir
-            );
-            region_add_child(p,c);
-        }
-    } else {
-        //cols
-        while (x <= arr->end_x) {
-            if (arr->cols[x - arr->start_x] == 0) {
-                if (zero_ctr == 0 && x != arr->start_x) {
-                    // end of a region
-                    possible_end_region = x;
-                }
-                zero_ctr++;
-            } else {
-                if ((zero_ctr > width*void_block_prop) || x == arr->start_x) {
-                    // begining of a new region
-                    if (possible_end_region > 0) {
-                        // create the child region
-                        struct Region *c = create_region(
-                            start_region, arr->start_y,
-                            possible_end_region, arr->end_y,
-                            p->level+1,cut_dir
-                        );
-                        region_add_child(p,c);
-                    }
-                    start_region = x;
-                }
-                zero_ctr = 0;
-            }
-            x++;
-        }
-        if (zero_ctr == 0) {
-            struct Region *c = create_region(
-                start_region, arr->start_y,
-                arr->end_x, arr->end_y,
-                p->level+1,cut_dir
-            );
-            region_add_child(p,c);
-        } else {
-            struct Region *c = create_region(
-                start_region, arr->start_y,
-                possible_end_region, arr->end_y,
-                p->level+1,cut_dir
-            );
-            region_add_child(p,c);
-        }
-    }
-    destroy_px_count_arr(arr);*/
 }
 
 void segment_region(
@@ -257,11 +160,9 @@ void segment_region(
             // child region same as parent : end recursion 
             // and remove unuseful child
             region_destroy(c);
-            struct Region **nl = realloc(
-                    p->children,(p->nb_children-1)*sizeof(struct Region)
-            );
-            p->children = nl;
-            p->nb_children--;
+            free(p->children);
+            p->children = NULL;
+            p->nb_children = 0;
             return;
         } else {
             if (cut_dir == CUT_VERTICAL) {
@@ -275,11 +176,11 @@ void segment_region(
             int width = p->children[i]->x2 - p->children[i]->x1;
             int height = p->children[i]->y2 - p->children[i]->y1;
             if (cut_dir == CUT_HORIZONTAL) {
-                if (width > min_width_prop*m->width) {
+                if (height > min_height_prop*m->height) {
                     segment_region(m,p->children[i],CUT_VERTICAL);
                 }
             } else {
-                if (height > min_height_prop*m->height) {
+                if (width > min_width_prop*m->width) {
                     segment_region(m,p->children[i],CUT_HORIZONTAL);
                 }
             }

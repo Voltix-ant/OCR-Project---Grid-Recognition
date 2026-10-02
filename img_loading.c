@@ -75,8 +75,8 @@ void draw_regions(SDL_Surface *s, struct Region *r) {
         // Draw the root area
         SDL_Rect zone = {.x = r->x1,
                          .y = r->y1,
-                         .w = r->x2 - r->x1,
-                         .h = r->y2 - r->y1};
+                         .w = r->x2 - r->x1 + 1,
+                         .h = r->y2 - r->y1 + 1};
         draw_rect_outline(s, zone, r->level % 6, 2);
     }
     for (size_t i = 0; i < r->nb_children; i++) {
