@@ -2,8 +2,9 @@
 #define GRID_DETECTION_H
 
 #include <stdlib.h>
-#include "utils.h"
 #include <err.h>
+#include <math.h>
+#include <stdio.h>
 
 struct matrix {
     size_t width;
@@ -26,10 +27,10 @@ struct px_count_arr {
 // ============= Regions ==================
 
 enum region_type {
-    REGION_UNKNOWN,
-    REGION_GRID,
-    REGION_WORDLIST,
-    REGION_UNNECESSARY
+    REGION_UNKNOWN,         // Not classified yet
+    REGION_GRID,            // Letters grid
+    REGION_WORDLIST,        // List of words to search
+    REGION_UNNECESSARY      // Titles, textes, illustrations not important
 };
 
 enum cut_direction { CUT_HORIZONTAL, CUT_VERTICAL };
@@ -43,6 +44,16 @@ struct Region {
     enum region_type type;      // filled after identification
     struct Region **children;
     size_t nb_children;
+};
+
+struct region_stats {
+    /*stats about a leaf region to classify*/
+    double density;         // black pixels / total area
+    double aspect_ratio;    // width / height
+    double regularity_rows; // variance in the sizes of internal runs on rows
+    double regularity_cols; // variance in the sizes of internal runs on cols
+    int nb_row_runs;   // number of row runs
+    int nb_col_runs;   // number of col runs
 };
 
 // FUNCTIONS
@@ -64,16 +75,27 @@ struct Region *create_region(
 void region_add_child(struct Region *parent, struct Region *child);
 void region_destroy(struct Region *root);
 
-
+// ------ Macro zone dectection ------
 void find_subregions(
         struct matrix *m,
-        struct Region *p, enum cut_direction cut_dir,
-        float void_block_prop
+        struct Region *p, enum cut_direction cut_dir
 );
 
 void segment_region(
         struct matrix *m, struct Region *p, 
         enum cut_direction cut_dir
 );
+
+void collect_leaves(struct Region *r, struct Region ***out, size_t *count);
+double compute_cv(const int *counts, int n, int *nb_runs);
+struct region_stats compute_region_stats(struct matrix *m, struct Region *r);
+
+// ------ Zone classification ------
+void detect_noise_leaves(struct matrix *m, 
+        struct Region **l, size_t nb_leaves);
+void detect_grid_leaves(struct matrix *m, struct Region **l, 
+        size_t nb_leaves);
+void detect_wordlist_leaves(struct Region **l, size_t nb_leaves);
+void classify_leaves(struct matrix *m, struct Region **l, size_t nb_leaves);
 
 #endif

@@ -93,16 +93,17 @@ void region_destroy(struct Region *root) {
 
 void find_subregions(
         struct matrix *m,
-        struct Region *p, enum cut_direction cut_dir,
-        float void_block_prop
+        struct Region *p, enum cut_direction cut_dir
 ) {
-    /*This function find all the subregions of a region p depending
+    /*This function finds all the subregions of a region p depending
     on the direction given with cut_dir, all the subregions are
-    added as children of the parent region p. To do so, it use the
-    number of black px of each rows/columns given by nb_blk_count().
-    We consider there is a gap (region change) if the blank area exceed
-    the proportion given by void_block_prop of the width/height of the 
-    parent region*/
+    added as children of the parent region p. To do so, it uses the
+    number of black px of each row/column given by nb_blk_count().
+    A gap is considered a real separator if its size exceeds a threshold
+    proportional to the GLOBAL image dimension (not the current region's
+    size), so the threshold stays meaningful regardless of recursion depth.
+    This function is meant for macro layout segmentation only (title /
+    grid / word list / etc.), not for fine text segmentation.*/
 
     struct px_count_arr *arr = nb_blk_count(m,p->x1,p->y1,p->x2,p->y2);
     int horizontal = (cut_dir == CUT_HORIZONTAL);
@@ -110,54 +111,123 @@ void find_subregions(
     int offset = horizontal ? arr->start_y : arr->start_x;
     int n = horizontal ? arr->end_y - arr->start_y + 1
                        : arr->end_x - arr->start_x + 1;
-    int min_gap = (int)(n * void_block_prop);
 
+    // threshold based on the GLOBAL image size, not on n
+    const float void_block_prop = 0.02;
+    const int noise_floor = 2;
+    int ref_dim = horizontal ? (int)m->height : (int)m->width;
+    int threshold = (int)(ref_dim * void_block_prop);
+    if (threshold < noise_floor)
+        threshold = noise_floor;
+
+    // ------ Identify runs of black pixels --------
+
+    int *run_start = malloc(n * sizeof(int));
+    int *run_last  = malloc(n * sizeof(int));
+    int nb_runs = 0;
     int start = -1;
-    int last = -1;
 
-
-    for (int i = 0; i <= n; i++) {
-        int black = (i < n) && counts[i] != 0;
-        if (black) {
+    for (int i = 0; i < n; i++) {
+        if (counts[i] != 0) {
             if (start == -1)
                 start = i;
-            last = i;
-        } else if (start != -1 && (i == n || i - last > min_gap)) {
-            // vide trop grand (ou fin de zone) : on ferme le run
-            struct Region *c;
-            if (horizontal)
-                c = create_region(arr->start_x, offset + start,
-                                  arr->end_x, offset + last,
-                                  p->level + 1, cut_dir);
-            else
-                c = create_region(offset + start, arr->start_y,
-                                  offset + last, arr->end_y,
-                                  p->level + 1, cut_dir);
-            region_add_child(p, c);
+        } else if (start != -1) {
+            run_start[nb_runs] = start;
+            run_last[nb_runs]  = i - 1;
+            nb_runs++;
             start = -1;
         }
     }
+    if (start != -1) { // region ends on a run not closed
+        run_start[nb_runs] = start;
+        run_last[nb_runs]  = n - 1;
+        nb_runs++;
+    }
+
+    if (nb_runs == 0) { // nothing in this region
+        free(run_start);
+        free(run_last);
+        destroy_px_count_arr(arr);
+        return;
+    }
+
+    // ------- Merge the runs based on the threshold ----------
+
+    int cur_start = run_start[0];
+    int cur_last  = run_last[0];
+
+    for (int i = 1; i < nb_runs; i++) {
+        int gap = run_start[i] - cur_last - 1;
+        if (gap <= threshold) {
+            cur_last = run_last[i]; // small gap : merge
+            continue;
+        }
+        // true separator : close current region
+        struct Region *c;
+        if (horizontal)
+            c = create_region(arr->start_x, offset + cur_start,
+                              arr->end_x, offset + cur_last,
+                              p->level + 1, cut_dir);
+        else
+            c = create_region(offset + cur_start, arr->start_y,
+                              offset + cur_last, arr->end_y,
+                              p->level + 1, cut_dir);
+        region_add_child(p, c);
+        cur_start = run_start[i];
+        cur_last  = run_last[i];
+    }
+
+    // last pending block
+    struct Region *c;
+    if (horizontal)
+        c = create_region(arr->start_x, offset + cur_start,
+                          arr->end_x, offset + cur_last,
+                          p->level + 1, cut_dir);
+    else
+        c = create_region(offset + cur_start, arr->start_y,
+                          offset + cur_last, arr->end_y,
+                          p->level + 1, cut_dir);
+    region_add_child(p, c);
+
+    free(run_start);
+    free(run_last);
     destroy_px_count_arr(arr);
 }
 
 void segment_region(
-        struct matrix *m, struct Region *p, 
+        struct matrix *m, struct Region *p,
         enum cut_direction cut_dir
 ) {
     /*This function is recursive, it calls find_subregions() with the cut
-    direction changing each call to find all the subregions in the image*/
-    // Parameters :
-    float void_block_prop = 0.01; // min prop to consider a void block
-    float min_width_prop = 0.01; // min prop of the image width for a region
-    float min_height_prop = 0.01;// ----------------------height -----------
+    direction changing each call to find all the macro layout regions in
+    the image (title, grid, word list, etc.). It stops recursing on a
+    region as soon as a cut produces too many children at once: that is
+    the signature of a repetitive structure (text line, letter grid)
+    rather than a real page layout subdivision, and fine segmentation of
+    that kind of content is handled separately, after classification.*/
 
-    find_subregions(m,p,cut_dir,void_block_prop);
+    float min_width_prop = 0.01;  // min prop of the image width for a region
+    float min_height_prop = 0.01; // ----------------------height -----------
+    const size_t max_children_macro = 5; // above this : repetitive content
+
+    find_subregions(m,p,cut_dir);
+
+    if (p->nb_children > max_children_macro) {
+        // too many children at once : not a real macro layout split,
+        // cancel the cut and keep p as a macro leaf
+        for (size_t i = 0; i < p->nb_children; i++)
+            region_destroy(p->children[i]);
+        free(p->children);
+        p->children = NULL;
+        p->nb_children = 0;
+        return;
+    }
 
     if (p->nb_children == 1) {
         struct Region *c = p->children[0];
-        if (p->x1 == c->x1 && p->x2 == c->x2 && 
+        if (p->x1 == c->x1 && p->x2 == c->x2 &&
             p->y1 == c->y1 && p->y2 == c->y2) {
-            // child region same as parent : end recursion 
+            // child region same as parent : end recursion
             // and remove unuseful child
             region_destroy(c);
             free(p->children);
@@ -186,4 +256,135 @@ void segment_region(
             }
         }
     }
+}
+
+void collect_leaves(struct Region *r, struct Region ***out, size_t *count) {
+    // this function put all the leaves from the region tree in a list
+    if (r->nb_children == 0) {
+        struct Region **nl = realloc(*out, 
+                (*count + 1) * sizeof(struct Region*));
+        if (!nl)
+            errx(1, "collect_leaves : Could not allocate memory");
+        *out = nl;
+        (*out)[*count] = r;
+        (*count)++;
+        return;
+    }
+    for (size_t i = 0; i < r->nb_children; i++) {
+        collect_leaves(r->children[i], out, count);
+    }
+}
+
+double compute_cv(const int *counts, int n, int *nb_runs) {
+    int run_count = 0;
+    double sum = 0, sum_sq = 0;
+    int start = -1;
+    for (int i = 0; i <= n; i++) {
+        int black = (i < n) && counts[i] != 0;
+        if (black) {
+            if (start == -1) start = i;
+        } else if (start != -1) {
+            int len = i - start;
+            sum += len;
+            sum_sq += (double)len * len;
+            run_count++;
+            start = -1;
+        }
+    }
+    *nb_runs = run_count;
+    if (run_count <= 1)
+        return 0;
+    double mean = sum / run_count;
+    double variance = sum_sq / run_count - mean * mean;
+    return (mean > 0) ? sqrt(variance) / mean : 0;
+}
+
+struct region_stats compute_region_stats(struct matrix *m, struct Region *r) {
+    struct region_stats s = {0};
+    // Aspect ratio
+    int width  = r->x2 - r->x1 + 1;
+    int height = r->y2 - r->y1 + 1;
+    s.aspect_ratio = (double)width / height;
+
+    // Density
+    struct px_count_arr *arr = nb_blk_count(m, r->x1, r->y1, r->x2, r->y2);
+
+    long nb_black = 0;
+    for (int i = 0; i < width; i++)
+        nb_black += arr->cols[i];
+    s.density = (double)nb_black / ((long)width * height);
+
+    // regularity: runs along the axis perpendicular to the last cut_dir
+    const int *counts = (r->cut_dir == CUT_HORIZONTAL) ? arr->cols : arr->rows;
+    int n = (r->cut_dir == CUT_HORIZONTAL) ? width : height;
+
+    int run_count = 0;
+    double sum = 0, sum_sq = 0;
+    int start = -1;
+    for (int i = 0; i <= n; i++) {
+        int black = (i < n) && counts[i] != 0;
+        if (black) {
+            if (start == -1) start = i;
+        } else if (start != -1) {
+            int len = i - start;
+            sum += len;
+            sum_sq += (double)len * len;
+            run_count++;
+            start = -1;
+        }
+    }
+    s.regularity_rows = compute_cv(arr->rows, height, &s.nb_row_runs);
+    s.regularity_cols = compute_cv(arr->cols, width,  &s.nb_col_runs);
+
+    destroy_px_count_arr(arr);
+    return s;
+}
+
+void detect_noise_leaves(struct matrix *m, struct Region **l, 
+        size_t nb_leaves) {
+    const double min_density = 0.01; // to adjust
+    const double max_density = 0.95;
+
+    for (size_t i = 0; i < nb_leaves; i++) {
+        struct region_stats s = compute_region_stats(m, l[i]);
+        if (s.density < min_density || s.density > max_density) {
+            l[i]->type = REGION_UNNECESSARY;
+        }
+    }
+}
+
+void detect_grid_leaves(struct matrix *m, struct Region **l, 
+        size_t nb_leaves) {
+    // const double grid_max_regularity = ...; // to caliber
+    const double grid_ratio_min = 0.5;
+    const double grid_ratio_max = 2.0;
+    const double grid_max_regularity = 0.3;
+
+    for (size_t i = 0; i < nb_leaves; i++) {
+        if (l[i]->type != REGION_UNKNOWN)
+            continue; // Already a noise region
+        struct region_stats s = compute_region_stats(m, l[i]);
+        if (s.aspect_ratio > grid_ratio_min && s.aspect_ratio < grid_ratio_max
+            && s.regularity_rows < grid_max_regularity
+            && s.regularity_cols < grid_max_regularity) {
+            l[i]->type = REGION_GRID;
+        }
+    }
+}
+
+void detect_wordlist_leaves(struct Region **l, size_t nb_leaves) {
+    /*TEMP Function : for now we consider that every region not a grid or a 
+    noise block is a wordlist, we must modify this when we use test image with
+    illustration, titles or other textes*/
+    for (size_t i = 0; i < nb_leaves; i++) {
+        if (l[i]->type == REGION_UNKNOWN) {
+            l[i]->type = REGION_WORDLIST;
+        }
+    }
+}
+
+void classify_leaves(struct matrix *m, struct Region **l, size_t nb_leaves) {
+    detect_noise_leaves(m,l, nb_leaves);
+    detect_grid_leaves(m,l, nb_leaves);
+    detect_wordlist_leaves(l, nb_leaves);
 }

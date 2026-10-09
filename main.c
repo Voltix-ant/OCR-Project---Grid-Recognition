@@ -17,17 +17,23 @@ int main(int argc, char **argv) {
     // root region = the whole image
     struct Region *r_region = create_region(0,0,mat->width-1,mat->height-1,
                                             0, CUT_VERTICAL);
-    // search region once for test purpose
-    //find_subregions(mat,r_region, CUT_HORIZONTAL,0.01);
     segment_region(mat, r_region, CUT_HORIZONTAL);
+    
+    struct Region **leaves = NULL;
+    size_t nb_leaves = 0;
+
+    collect_leaves(r_region, &leaves, &nb_leaves);
+    classify_leaves(mat, leaves, nb_leaves);
 
     // draw areas on the image 
-    draw_regions(s,r_region);
+    // draw_regions(s,r_region);
+    draw_leaves(s,leaves,nb_leaves);
 
     // Save result
     save_result(s);
 
     // Destroy everything
+    free(leaves);
     region_destroy(r_region);
     destroy_matrix(mat);
 

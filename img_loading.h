@@ -16,6 +16,12 @@ static const SDL_Color colors[6] = {
     {255, 0, 0, 255}    // 5
 };
 
+static const SDL_Color colors_r_type[5] = {
+    {255,0,255,255},    // REGION_UNKNOWN       -> pink
+    {0,0,255,255},      // REGION_GRID          -> blue
+    {0,255,0,255},      // REGION_WORDLIST      -> green
+    {255,0,0,255},      // REGION_UNNECESSARY   -> red
+};
 
 // loading
 SDL_Surface *load_image(const char *path);
@@ -23,8 +29,9 @@ struct matrix *img_to_matrix(SDL_Surface *s);
 
 // image edition
 void draw_rect_outline(
-        SDL_Surface *s, SDL_Rect r, int index, int thickness);
+        SDL_Surface *s, SDL_Rect r, Uint32 px_color, int thickness);
 void draw_regions(SDL_Surface *s, struct Region *r);
+void draw_leaves(SDL_Surface *s, struct Region **l, size_t nb_leaves);
 
 // Saving
 void save_result(SDL_Surface *s);
