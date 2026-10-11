@@ -76,15 +76,13 @@ void region_add_child(struct Region *parent, struct Region *child);
 void region_destroy(struct Region *root);
 
 // ------ Macro zone dectection ------
+int median_char_height(struct matrix *m);
 void find_subregions(
-        struct matrix *m,
-        struct Region *p, enum cut_direction cut_dir
+        struct matrix *m, struct Region *p, enum cut_direction cut_dir,
+        int threshold
 );
-
-void segment_region(
-        struct matrix *m, struct Region *p, 
-        enum cut_direction cut_dir
-);
+void segment_region(struct matrix *m, struct Region *p,
+                    enum cut_direction cut_dir, int threshold, int stalled);
 
 void collect_leaves(struct Region *r, struct Region ***out, size_t *count);
 double compute_cv(const int *counts, int n, int *nb_runs);
