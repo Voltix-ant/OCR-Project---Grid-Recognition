@@ -1,14 +1,15 @@
 CC = gcc
 CFLAGS = -Wall -Wextra -fsanitize=address -g
 LIBFLAGS = $(shell sdl2-config --cflags --libs) -lSDL2_image -lm
-SRC = main.o img_loading.o grid_detection.o utils.o
+SRC = $(wildcard src/*.c)
+OBJ = $(SRC:.c=.o)
 EXEC_NAME = app
 
-all: $(SRC)
+all: $(OBJ)
 	$(CC) $^ -o $(EXEC_NAME) $(CFLAGS) $(LIBFLAGS)
 
 %.o: %.c
 	$(CC) $< -c -o $@ $(CFLAGS) $(LIBFLAGS)
 
 clean:
-	$(RM) *.o $(EXEC_NAME)
+	$(RM) $(OBJ) $(EXEC_NAME)

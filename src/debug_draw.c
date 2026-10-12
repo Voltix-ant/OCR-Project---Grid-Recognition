@@ -1,53 +1,4 @@
-#include "img_loading.h"
-#include "grid_detection.h"
-#include <stdlib.h>
-#include <sys/stat.h>
-
-SDL_Surface *load_image(const char *path) {
-    SDL_Surface *tmp = IMG_Load(path);
-    if (!tmp)
-        errx(1, "Error : Fail loading image - %s", IMG_GetError());
-    // Convert in a universal format : RGBA32
-    SDL_Surface *s = SDL_ConvertSurfaceFormat(tmp, SDL_PIXELFORMAT_RGBA32, 0);
-    SDL_FreeSurface(tmp);
-    if (!s)
-        errx(1, "Error : Fail to convert the image to RGBA32 - %s", 
-                SDL_GetError());
-    return s;
-}
-
-Uint32 get_px(SDL_Surface *s, int x, int y)
-{
-    return ((Uint32 *)s->pixels)[y * (s->pitch / 4) + x];
-}
-
-struct matrix *img_to_matrix(SDL_Surface *s) {
-    struct matrix *mat = malloc(sizeof(struct matrix));
-    mat->width = s->w;
-    mat->height = s->h;
-    mat->data = malloc(mat->height*sizeof(char *));
-    
-    SDL_LockSurface(s);
-    for (int y = 0; y < s->h; y++) {
-        mat->data[y] = malloc(mat->width*sizeof(char));
-        for (int x = 0; x < s->w; x++) {
-            Uint8 r, g, b, a;
-            SDL_GetRGBA(get_px(s, x, y), s->format, &r, &g, &b, &a);
-
-            // temporary binarisation (unusable)
-            // This part will be replaced by the actual image binarisation
-            // algorithm developped by Gustave
-            if (r > 128) {
-                mat->data[y][x] = 255;
-            } else {
-                mat->data[y][x] = 0;
-            }
-        }
-    }
-    SDL_UnlockSurface(s);
-    return mat;
-}
-
+#include "debug_draw.h"
 
 void draw_rect_outline(
         SDL_Surface *s, SDL_Rect r, Uint32 px_color, int thickness
@@ -84,7 +35,7 @@ void draw_regions(SDL_Surface *s, struct Region *r) {
     }
 }
 
-void draw_leaves(SDL_Surface *s, struct Region **l, size_t nb_leaves) {
+void draw_macro_zones(SDL_Surface *s, struct Region **l, size_t nb_leaves) {
     for (size_t i = 0; i < nb_leaves; i++) {
         struct Region *r = l[i];
         SDL_Rect zone = {.x = r->x1,
@@ -99,5 +50,6 @@ void draw_leaves(SDL_Surface *s, struct Region **l, size_t nb_leaves) {
 
 void save_result(SDL_Surface *s) {
     mkdir("detec_steps", 0755);
-    IMG_SavePNG(s, "detec_steps/result.png");
+    IMG_SavePNG(s, "detec_steps/macro_zones.png");
 }
+

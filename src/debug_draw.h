@@ -1,10 +1,11 @@
-#ifndef IMG_LOADING_H
-#define IMG_LOADING_H
+#ifndef DEBUG_DRAW_H
+#define DEBUG_DRAW_H
 
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_image.h>
 #include <err.h>
-#include "grid_detection.h"
+#include <sys/stat.h>
+#include "region.h"
 
 // Colors for regions
 static const SDL_Color colors[6] = {
@@ -23,15 +24,13 @@ static const SDL_Color colors_r_type[5] = {
     {255,0,0,255},      // REGION_UNNECESSARY   -> red
 };
 
-// loading
-SDL_Surface *load_image(const char *path);
-struct matrix *img_to_matrix(SDL_Surface *s);
+// Functions
 
 // image edition
 void draw_rect_outline(
         SDL_Surface *s, SDL_Rect r, Uint32 px_color, int thickness);
 void draw_regions(SDL_Surface *s, struct Region *r);
-void draw_leaves(SDL_Surface *s, struct Region **l, size_t nb_leaves);
+void draw_macro_zones(SDL_Surface *s, struct Region **l, size_t nb_leaves);
 
 // Saving
 void save_result(SDL_Surface *s);

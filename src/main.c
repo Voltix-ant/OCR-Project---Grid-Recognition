@@ -1,8 +1,12 @@
-#include <err.h>
-#include "img_loading.h"
-#include "grid_detection.h"
-#include <SDL2/SDL.h>
-#include <SDL2/SDL_image.h>
+#include <stdlib.h>
+#include <stdio.h>
+#include "image_io.h"
+#include "matrix.h"
+#include "region.h"
+#include "components.h"
+#include "segmentation.h"
+#include "classification.h"
+#include "debug_draw.h"
 
 int main(int argc, char **argv) {
     if (argc != 2)
@@ -40,7 +44,7 @@ int main(int argc, char **argv) {
 
     // draw areas on the image 
     // draw_regions(s,r_region);
-    draw_leaves(s,leaves,nb_leaves);
+    draw_macro_zones(s,leaves,nb_leaves);
 
     // Save result
     save_result(s);
