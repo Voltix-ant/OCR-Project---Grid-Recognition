@@ -19,13 +19,19 @@ Uint32 get_px(SDL_Surface *s, int x, int y) {
 
 struct matrix *img_to_matrix(SDL_Surface *s) {
     struct matrix *mat = malloc(sizeof(struct matrix));
+    if (!mat)
+        errx(1, "img_to_matrix : Couldn't allocate memory");
     mat->width = s->w;
     mat->height = s->h;
     mat->data = malloc(mat->height*sizeof(char *));
+    if (!mat->data)
+        errx(1, "img_to_matrix : Couldn't allocate memory");
     
     SDL_LockSurface(s);
     for (int y = 0; y < s->h; y++) {
-        mat->data[y] = malloc(mat->width*sizeof(char));
+        mat->data[y] = malloc(mat->width*sizeof(unsigned char));
+        if (!mat->data[y])
+            errx(1, "img_to_matrix : Couldn't allocate memory");
         for (int x = 0; x < s->w; x++) {
             Uint8 r, g, b, a;
             SDL_GetRGBA(get_px(s, x, y), s->format, &r, &g, &b, &a);

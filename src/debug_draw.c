@@ -42,14 +42,33 @@ void draw_macro_zones(SDL_Surface *s, struct Region **l, size_t nb_leaves) {
                          .y = r->y1,
                          .w = r->x2 - r->x1 + 1,
                          .h = r->y2 - r->y1 + 1};
-        SDL_Color c = colors_r_type[r->type % 5];
+        SDL_Color c = colors_r_type[r->type % 4];
         Uint32 px_color = SDL_MapRGB(s->format, c.r, c.g, c.b);
         draw_rect_outline(s, zone, px_color, 2);
     }
 }
 
-void save_result(SDL_Surface *s) {
-    mkdir("detec_steps", 0755);
-    IMG_SavePNG(s, "detec_steps/macro_zones.png");
+void draw_letter_grid(SDL_Surface *s, struct letter_grid *g) {
+    /*Draws one rectangle per letter, the color changes with the row*/
+        SDL_Color c = colors_r_type[1];
+        Uint32 px_color = SDL_MapRGB(s->format, c.r, c.g, c.b);
+    for (size_t r = 0; r < g->nb_rows; r++) {
+        size_t end = (r + 1 < g->nb_rows) ? g->row_start[r + 1]
+                                          : g->letters->count;
+        for (size_t i = g->row_start[r]; i < end; i++) {
+            struct box *b = &g->letters->items[i];
+            SDL_Rect rect = {b->x1, b->y1,
+                             b->x2 - b->x1 + 1, b->y2 - b->y1 + 1};
+            draw_rect_outline(s, rect, px_color, 1);
+        }
+    }
 }
 
+void save_result(SDL_Surface *s, char *filename) {
+    mkdir("detec_steps", 0755);
+    if (strlen(filename) > 100) 
+        errx(1, "save_result : filename too long");
+    char name[120] = "detec_steps/";
+    strcat(name,filename);
+    IMG_SavePNG(s, name);
+}

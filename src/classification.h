@@ -28,5 +28,6 @@ void detect_grid_leaves(struct matrix *m, struct Region **l,
         size_t nb_leaves);
 void detect_wordlist_leaves(struct Region **l, size_t nb_leaves);
 void classify_leaves(struct matrix *m, struct Region **l, size_t nb_leaves);
+struct Region *get_grid_region(struct Region **l, size_t nb_leaves);
 
 #endif

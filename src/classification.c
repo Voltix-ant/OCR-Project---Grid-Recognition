@@ -113,3 +113,12 @@ void classify_leaves(struct matrix *m, struct Region **l, size_t nb_leaves) {
     detect_grid_leaves(m,l, nb_leaves);
     detect_wordlist_leaves(l, nb_leaves);
 }
+
+struct Region *get_grid_region(struct Region **l, size_t nb_leaves) {
+    for (size_t i = 0; i < nb_leaves; i++) {
+        if (l[i]->type == REGION_GRID) {
+            return l[i];
+        }
+    }
+    return NULL;
+}
