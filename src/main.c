@@ -4,6 +4,7 @@
 #include "matrix.h"
 #include "region.h"
 #include "components.h"
+#include "word_list.h"
 #include "char_image.h"
 #include "segmentation.h"
 #include "classification.h"
@@ -18,6 +19,8 @@ int main(int argc, char **argv) {
     
     // Translate to matrix
     struct matrix *mat = img_to_matrix(s);
+
+    // ===================== Macro zones detection ====================
 
     // gap threshold, in number of letter heights
     // to adjust with broader image selection
@@ -41,12 +44,14 @@ int main(int argc, char **argv) {
     collect_leaves(r_region, &leaves, &nb_leaves);
     printf("%zu regions found\n",nb_leaves);
 
+    // ===================== Macro zones classification ====================
+
     classify_leaves(mat, leaves, nb_leaves);
     struct Region *grid_region = get_grid_region(leaves, nb_leaves);
     if (!grid_region)
         errx(1, "No grid region found");
 
-    // draw areas on the image 
+    // draw macro zones with their type (colors)
     SDL_Surface *s_macro_zones = SDL_DuplicateSurface(s);
     if (!s_macro_zones)
         errx(1, "%s", SDL_GetError());
@@ -56,6 +61,12 @@ int main(int argc, char **argv) {
     save_result(s_macro_zones, "macro_zones.png");
     SDL_FreeSurface(s_macro_zones);
 
+    SDL_Surface *s_letter_grid = SDL_DuplicateSurface(s);
+    if (!s_letter_grid)
+        errx(1, "%s", SDL_GetError());
+
+    // ===================== Grid zone character recovery ==================
+
     // letter grid
     struct box_list *comps = find_components(mat, grid_region->x1, 
             grid_region->y1,grid_region->x2, grid_region->y2);
@@ -64,11 +75,20 @@ int main(int argc, char **argv) {
     //destroy_matrix(letter_to_28(mat,comps->items[5]));
     struct letter_grid *lg = build_letter_grid(comps, char_h); // lg owns comps
     check_letter_grid(lg);
+    draw_letter_grid(s_letter_grid, lg,REGION_GRID);
 
-    SDL_Surface *s_letter_grid = SDL_DuplicateSurface(s);
-    if (!s_letter_grid)
-        errx(1, "%s", SDL_GetError());
-    draw_letter_grid(s_letter_grid, lg);
+    // ================== Wordlist zones character recovery ===============
+ 
+    for (size_t i = 0; i < nb_leaves; i++) {
+        if (leaves[i]->type == REGION_WORDLIST) {
+            struct letter_grid *wl = build_word_list(mat, leaves[i]);
+            print_row_sizes(wl);
+            draw_letter_grid(s_letter_grid, wl,REGION_WORDLIST);
+            // ... later : use wl, then
+            destroy_letter_grid(wl);
+        }
+    }
+
     save_result(s_letter_grid,"letter_grid.png");
     SDL_FreeSurface(s_letter_grid);
 

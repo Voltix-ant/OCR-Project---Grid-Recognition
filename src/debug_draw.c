@@ -48,9 +48,9 @@ void draw_macro_zones(SDL_Surface *s, struct Region **l, size_t nb_leaves) {
     }
 }
 
-void draw_letter_grid(SDL_Surface *s, struct letter_grid *g) {
+void draw_letter_grid(SDL_Surface *s, struct letter_grid *g, int color) {
     /*Draws one rectangle per letter, the color changes with the row*/
-        SDL_Color c = colors_r_type[1];
+        SDL_Color c = colors_r_type[color];
         Uint32 px_color = SDL_MapRGB(s->format, c.r, c.g, c.b);
     for (size_t r = 0; r < g->nb_rows; r++) {
         size_t end = (r + 1 < g->nb_rows) ? g->row_start[r + 1]

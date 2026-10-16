@@ -32,7 +32,7 @@ void draw_rect_outline(
         SDL_Surface *s, SDL_Rect r, Uint32 px_color, int thickness);
 void draw_regions(SDL_Surface *s, struct Region *r);
 void draw_macro_zones(SDL_Surface *s, struct Region **l, size_t nb_leaves);
-void draw_letter_grid(SDL_Surface *s, struct letter_grid *g);
+void draw_letter_grid(SDL_Surface *s, struct letter_grid *g, int color);
 
 // Saving
 void save_result(SDL_Surface *s, char *filename);

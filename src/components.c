@@ -80,36 +80,34 @@ static int cmp_int_asc(const void *a, const void *b) {
     return (x > y) - (x < y);
 }
 
-int median_char_height(struct matrix *m) {
-    /*Returns the median height (in px) of the connected components of the
-    whole image, ignoring noise (< 4 px). Since most components are
-    letters, this gives a reference size that follows the scale of the
-    image. Returns 0 if nothing is found.*/
-    struct box_list *comps = find_components(m, 0, 0,
-                                             (int)m->width - 1,
-                                             (int)m->height - 1);
-    if (comps->count == 0) {
-        destroy_box_list(comps);
+int median_box_height(struct box_list *l) {
+    /*Median height of the boxes of l, ignoring noise (< 4 px).
+    Returns 0 if there is none.*/
+    if (l->count == 0)
         return 0;
-    }
-
-    int *heights = malloc(comps->count * sizeof(int));
+    int *heights = malloc(l->count * sizeof(int));
     if (!heights)
-        errx(1, "median_char_height : Could not allocate memory");
-
+        errx(1, "median_box_height : Could not allocate memory");
     size_t n = 0;
-    for (size_t i = 0; i < comps->count; i++) {
-        int h = comps->items[i].y2 - comps->items[i].y1 + 1;
+    for (size_t i = 0; i < l->count; i++) {
+        int h = l->items[i].y2 - l->items[i].y1 + 1;
         if (h >= 4)
             heights[n++] = h;
     }
-
     int result = 0;
     if (n > 0) {
         qsort(heights, n, sizeof(int), cmp_int_asc);
         result = heights[n / 2];
     }
     free(heights);
+    return result;
+}
+
+int median_char_height(struct matrix *m) {
+    struct box_list *comps = find_components(m, 0, 0,
+                                             (int)m->width - 1,
+                                             (int)m->height - 1);
+    int result = median_box_height(comps);
     destroy_box_list(comps);
     return result;
 }
@@ -173,5 +171,121 @@ void merge_close_boxes(struct box_list *l, int char_h) {
                 break;
             }
         }
+    }
+}
+
+void split_wide_boxes(struct matrix *m, struct box_list *l, int char_h) {
+    /*Splits the boxes that look like several letters stuck together : the
+    height of a letter but too wide for a single one. The number of letters
+    is estimated from the reference letter width, then each cut is placed
+    on the column with the least ink near the expected position.*/
+    const double min_h_prop = 0.5;   // letter-like height range
+    const double max_h_prop = 1.5;
+    const double wide_prop = 1.3;    // wider than this : several letters
+    const double max_w_prop = 12.0;  // wider than this : not a word
+
+    // 1. reference letter width = median width of the normal boxes
+    int *widths = malloc((l->count + 1) * sizeof(int));
+    if (!widths)
+        errx(1, "split_wide_boxes : Could not allocate memory");
+    size_t nw = 0;
+    for (size_t i = 0; i < l->count; i++) {
+        int bw = l->items[i].x2 - l->items[i].x1 + 1;
+        int bh = l->items[i].y2 - l->items[i].y1 + 1;
+        if (bh >= min_h_prop * char_h && bh <= max_h_prop * char_h
+                && bw <= wide_prop * char_h)
+            widths[nw++] = bw;
+    }
+    int ref_w = (int)(0.7 * char_h);   // fallback : no normal box found
+    if (nw > 0) {
+        qsort(widths, nw, sizeof(int), cmp_int_asc);
+        ref_w = widths[nw / 2];
+    }
+    free(widths);
+    if (ref_w < 1)
+        ref_w = 1;
+
+    // 2. split the wide boxes. Pieces are appended at the end of the list,
+    // so only the boxes existing at the start are examined
+    size_t original = l->count;
+    for (size_t i = 0; i < original; i++) {
+        struct box b = l->items[i];
+        int bw = b.x2 - b.x1 + 1;
+        int bh = b.y2 - b.y1 + 1;
+        if (bh < min_h_prop * char_h || bh > max_h_prop * char_h)
+            continue;
+        if (bw <= wide_prop * char_h || bw > max_w_prop * char_h)
+            continue;
+        int nb = (int)round((double)bw / ref_w);
+        if (nb < 2)
+            continue;
+
+        // ink count of each column of the box
+        int *cols = calloc(bw, sizeof(int));
+        if (!cols)
+            errx(1, "split_wide_boxes : Could not allocate memory");
+        for (int y = b.y1; y <= b.y2; y++)
+            for (int x = b.x1; x <= b.x2; x++)
+                if (m->data[y][x] == 0)
+                    cols[x - b.x1]++;
+
+        double piece = (double)bw / nb;
+        int win = (int)(0.3 * piece);
+        if (win < 1)
+            win = 1;
+
+        int start = 0;       // first column of the current piece
+        int first = 1;       // the first piece replaces the original box
+        for (int k = 1; k <= nb; k++) {
+            int end;         // last column of the current piece
+            int next_start;
+            if (k == nb) {
+                end = bw - 1;
+                next_start = bw;
+            } else {
+                int ideal = (int)(k * piece);
+                int lo = ideal - win;
+                int hi = ideal + win;
+                if (lo < start + 1) lo = start + 1;
+                if (hi < lo) hi = lo;
+                if (hi > bw - 1) {
+                    hi = bw - 1;
+                    if (lo > hi) lo = hi;
+                }
+                int best = lo;
+                for (int c = lo; c <= hi; c++) {
+                    if (cols[c] < cols[best] ||
+                        (cols[c] == cols[best] &&
+                         abs(c - ideal) < abs(best - ideal)))
+                        best = c;
+                }
+                end = best - 1;          // the cut column is dropped
+                next_start = best + 1;
+            }
+
+            // tight box of the ink in columns [start, end]
+            struct box nbx = {b.x2 + 1, b.y2 + 1, b.x1 - 1, b.y1 - 1};
+            for (int y = b.y1; y <= b.y2; y++) {
+                for (int c = start; c <= end; c++) {
+                    if (m->data[y][b.x1 + c] != 0)
+                        continue;
+                    int x = b.x1 + c;
+                    if (x < nbx.x1) nbx.x1 = x;
+                    if (x > nbx.x2) nbx.x2 = x;
+                    if (y < nbx.y1) nbx.y1 = y;
+                    if (y > nbx.y2) nbx.y2 = y;
+                }
+            }
+            if (nbx.x1 <= nbx.x2) {      // not empty
+                if (first) {
+                    l->items[i] = nbx;
+                    first = 0;
+                } else {
+                    box_list_add(l, nbx);
+                }
+            }
+            start = next_start;
+        }
+        free(cols);
     }
 }
